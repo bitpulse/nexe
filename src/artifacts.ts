@@ -1,21 +1,25 @@
 import { join, dirname } from 'path'
 import { readdir, unlink } from 'fs'
 import { readFileAsync, writeFileAsync, isDirectoryAsync } from './util'
-import { promisify, map } from 'bluebird'
 import * as mkdirp from 'mkdirp'
 import { NexeCompiler } from './compiler'
+import pify = require('pify')
 
-const mkdirpAsync = promisify(mkdirp)
-const unlinkAsync = (promisify(unlink) as any) as (path: string) => PromiseLike<void>
-const readdirAsync = promisify(readdir)
+const mkdirpAsync = pify(mkdirp)
+const unlinkAsync = pify(unlink)
+const readdirAsync = pify(readdir)
 
-function readDirAsync(dir: string): PromiseLike<string[]> {
-  return readdirAsync(dir)
-    .map((file: string) => {
-      const path = join(dir, file)
-      return isDirectoryAsync(path).then((x: boolean) => (x ? readDirAsync(path) : path as any))
+function readDirAsync(dir: string): Promise<string[]> {
+  return readdirAsync(dir).then(paths => {
+    return Promise.all(
+      paths.map((file: string) => {
+        const path = join(dir, file)
+        return isDirectoryAsync(path).then(x => (x ? readDirAsync(path) : path as any))
+      })
+    ).then(result => {
+      return [].concat(...(result as any))
     })
-    .reduce((a: string[], b: string[] | string) => a.concat(b), [])
+  })
 }
 
 function maybeReadFileContentsAsync(file: string) {
@@ -43,20 +47,24 @@ export default async function artifacts(compiler: NexeCompiler, next: () => Prom
   await mkdirpAsync(temp)
   const tmpFiles = await readDirAsync(temp)
 
-  await map(tmpFiles, async path => {
-    return compiler.writeFileAsync(path.replace(temp, ''), await readFileAsync(path, 'utf-8'))
-  })
+  await Promise.all(
+    tmpFiles.map(async path => {
+      return compiler.writeFileAsync(path.replace(temp, ''), await readFileAsync(path, 'utf-8'))
+    })
+  )
 
   await next()
 
-  await map(tmpFiles, x => unlinkAsync(x))
-  return map(compiler.files, async file => {
-    const sourceFile = join(src, file.filename)
-    const tempFile = join(temp, file.filename)
-    const fileContents = await maybeReadFileContentsAsync(sourceFile)
+  await Promise.all(tmpFiles.map(x => unlinkAsync(x)))
+  return Promise.all(
+    compiler.files.map(async file => {
+      const sourceFile = join(src, file.filename)
+      const tempFile = join(temp, file.filename)
+      const fileContents = await maybeReadFileContentsAsync(sourceFile)
 
-    await mkdirpAsync(dirname(tempFile))
-    await writeFileAsync(tempFile, fileContents)
-    await compiler.writeFileAsync(file.filename, file.contents)
-  })
+      await mkdirpAsync(dirname(tempFile))
+      await writeFileAsync(tempFile, fileContents)
+      await compiler.writeFileAsync(file.filename, file.contents)
+    })
+  )
 }

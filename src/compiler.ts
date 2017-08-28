@@ -1,5 +1,4 @@
 import { normalize, join } from 'path'
-import * as Bluebird from 'bluebird'
 import { Buffer } from 'buffer'
 import { createHash } from 'crypto'
 import { createReadStream } from 'fs'
@@ -67,7 +66,10 @@ export class NexeCompiler {
         cachedFile = {
           absPath,
           filename: file,
-          contents: await readFileAsync(absPath, 'utf-8').catch({ code: 'ENOENT' }, () => '')
+          contents: await readFileAsync(absPath, 'utf-8').catch(x => {
+            if (x.code === 'ENOENT') return ''
+            throw x
+          })
         }
         this.files.push(cachedFile)
       }
@@ -98,7 +100,7 @@ export class NexeCompiler {
   }
 
   private _runBuildCommandAsync(command: string, args: string[]) {
-    return new Bluebird((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       spawn(command, args, {
         cwd: this.src,
         env: this.env,

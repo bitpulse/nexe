@@ -8,9 +8,6 @@ import download from './download'
 import artifacts from './artifacts'
 import patches from './patches'
 import { rimrafAsync } from './util'
-import * as Bluebird from 'bluebird'
-
-PromiseConfig.constructor = Bluebird
 
 async function compile(compilerOptions: NexeOptions, callback?: (err: Error | null) => void) {
   const options = await normalizeOptionsAsync(compilerOptions)

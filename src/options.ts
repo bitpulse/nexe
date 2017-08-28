@@ -1,7 +1,6 @@
 import * as parseArgv from 'minimist'
 import { NexeCompiler } from './compiler'
 import { basename, extname, join } from 'path'
-import * as Bluebird from 'bluebird'
 import { EOL } from 'os'
 
 export interface NexePatch {

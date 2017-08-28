@@ -1,12 +1,11 @@
 import { normalize } from 'path'
-import * as Bluebird from 'bluebird'
 import { Readable } from 'stream'
 import { createWriteStream, chmodSync } from 'fs'
 import { readFileAsync, dequote, isWindows } from './util'
 import { NexeCompiler } from './compiler'
 
 function readStreamAsync(stream: NodeJS.ReadableStream): PromiseLike<string> {
-  return new Bluebird(resolve => {
+  return new Promise(resolve => {
     let input = ''
     stream.setEncoding('utf-8')
     stream.on('data', (x: string) => {
@@ -59,7 +58,7 @@ export default async function cli(compiler: NexeCompiler, next: () => Promise<vo
   compiler.output = output || `${compiler.options.name}${isWindows ? '.exe' : ''}`
   const deliverable = await compiler.compileAsync()
 
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const step = log.step('Writing result to file')
     deliverable
       .pipe(createWriteStream(normalize(compiler.output!)))
